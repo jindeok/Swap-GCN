@@ -63,12 +63,12 @@ permmodel = GCN(A1_list[0], feature.shape[1], [64, 32, 32]) #A1_list[0] -> ê°€ì
 criterion = torch.nn.MSELoss(reduction='sum')
 #criterion = torch.nn.CrossEntropyLoss(reduction='sum') #argument?
 recoptimizer = torch.optim.Adam(recmodel.parameters(), lr=1e-4)
-permoptimizer = torch.optim.Adam(permmodel.parameters(), lr=1e-4)
+permoptimizer = torch.optim.Adam(permmodel.parameters(), lr=1e-3)
 
 
 ####training##########
-epochs = 1000
-epochs_prox = 100
+epochs = 2000
+epochs_prox = 1000
 alpha = 0.5 #loss hyperparam
 for t in range(epochs):
     for i in range(len(Y1_train)):
@@ -93,7 +93,7 @@ for t in range(epochs):
             A1_prime = A1 
             
         #proxy training with nested loop
-        if t % 30 == 0:     
+        if t % 200 == 0:     
             for j in range(epochs_prox):
                 #forward
                 A1_prime_np = A1_prime.clone().detach().numpy()
@@ -108,9 +108,17 @@ for t in range(epochs):
                 permoptimizer.zero_grad()                
                 loss_perm.backward()
                 permoptimizer.step()
-                if j % 25 == 0:
+                if j % 200 == 0:
                    print("iter:{}, proxy loss:{}, ".format(j,loss_perm.item()))
-           ## A1_prime -> actual matching 0928 to-do
+            # Using actual permutation
+            P_hat = P_hat.clone().detach().numpy()   
+            A1_prime_np = A1_prime.clone().detach().numpy() 
+            prune_permutation = matching(P_hat)  # hungarian assignment algorithm
+            test_p = np.zeros((A1_np.shape[0],A1_np.shape[0]))
+            for i in range(len(prune_permutation[0])):
+                temp = prune_permutation[0][i]
+                test_p[i][temp] = 1
+            A1_prime_np = np.dot(np.dot(test_p,A1_prime_np),test_p.T)
         
         # feed forward      
         A1_prime_np = A1_prime.clone().detach().numpy()           
@@ -146,9 +154,15 @@ for t in range(epochs):
         loss_swap_sum.backward()
         recoptimizer.step()
         
-        
-        
-    ####test the results##########
+
+####test the results##########
+#for only 1 graph -> to be revised
+rec_pred1 = rec_pred1.clone().detach().numpy()  
+rec_pruned = PredPruning(rec_pred1, thres = 0.5)
+results = np.reshape(rec_pruned, (A1_np.shape[0],A1_np.shape[0]))
+G_test = nx.from_numpy_array(results)
+nx.draw(G_test)
+    
         
         
         

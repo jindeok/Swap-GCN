@@ -178,3 +178,15 @@ def extract_masking_set(A1,A2):
     theta2 = disc2    
 
     return 1-theta1, 1-theta2
+
+def PredPruning(result, thres):
+    
+    adj_result=[]
+    for i in result:
+        if i <= thres:
+            adj_result.append(0)
+        elif i >= thres:
+            adj_result.append(1)
+    adj_result = np.array(adj_result)
+
+    return adj_result
