@@ -67,7 +67,8 @@ permoptimizer = torch.optim.Adam(permmodel.parameters(), lr=1e-3)
 
 
 ####training##########
-epochs = 1200
+epochs_swap = 2000
+epochs_prox = 1000
 alpha = 0.5 #loss hyperparam
 for t in range(epochs):
     for i in range(len(Y1_train)):
@@ -88,57 +89,63 @@ for t in range(epochs):
         A2_fl = torch.from_numpy(A2_fl)
         
         if t == 0:
-            
+            outgcn = permmodel(A1_np, ts_feature)
             A1_prime = A1 
             A1_prime_np = A1_prime.clone().detach().numpy() 
             A1_prime_fl = A1_prime.flatten()
+            
+        #proxy training with nested loop
+        if t % 200 == 199:     
+            for j in range(epochs_prox): #인풋이 여러개가 되면 바뀌어야할듯. 지금은 1개마다 epochs_prox씩 학습됨.
+                #forward - infer P , apply to A
+                A1_prime_np = A1_prime.clone().detach().numpy()
+                outgcn = permmodel(A1_prime_np, ts_feature)
+                P_hat = sinkhorn(outgcn, n_iters= 20, temp= 0.01)       
+                temp = torch.matmul(P_hat, A1)   
+                P_hat_inv = torch.transpose(P_hat, 0, 1)
+                #permuted A1
+                A1_prime = torch.matmul(temp, P_hat_inv) 
+                #optimizer
+                loss_perm = criterion(A1_prime, A2)                
+                permoptimizer.zero_grad()                
+                loss_perm.backward()
+                permoptimizer.step()
+                #log
+                if j % 200 == 0:
+                   print("iter:{}, proxy loss:{}, ".format(j,loss_perm.item()))
+            # actual permutation
+            P_hat = P_hat.clone().detach().numpy()   
+            A1_prime_np = A1_prime.clone().detach().numpy() 
+            prune_permutation = matching(P_hat)  # hungarian assignment algorithm
+            test_p = np.zeros((A1_np.shape[0],A1_np.shape[0]))
+            for i in range(len(prune_permutation[0])):
+                temp = prune_permutation[0][i]
+                test_p[i][temp] = 1
+            # apply actual permutation
+            A1_prime_np = np.dot(np.dot(test_p,A1_prime_np),test_p.T)
+            A1_prime_fl = A1_prime_np.flatten()
+            A1_prime_fl = A1_prime_fl.astype('float32')
+            A1_prime_fl = torch.from_numpy(A1_prime_fl)
         
-        rec_pred1 = recmodel(A1_prime_fl) #reconstructed Ai
-        rec_pred2 = recmodel(A2_fl) 
-        rec_pred1_np = rec_pred1.clone().detach().numpy()
-        rec_pred2_np = rec_pred2.clone().detach().numpy()  
-        rec_pred1_np = np.reshape(rec_pred1_np, (A1_np.shape[0],A1_np.shape[0]))
-        rec_pred2_np = np.reshape(rec_pred2_np, (A1_np.shape[0],A1_np.shape[0]))
-        rec_pred1 = torch.from_numpy(rec_pred1_np)
-        rec_pred2 = torch.from_numpy(rec_pred2_np) #for grad stop
+        # feed forward      
+                  
+        # outgcn = permmodel(A1_prime_np, ts_feature)
+        # # permuted new A1
+        # P_hat = sinkhorn(outgcn, n_iters= 20, temp= 0.01)       
+        # temp = torch.matmul(P_hat, A1)   
+        # P_hat_inv = torch.transpose(P_hat, 0, 1)
+        # A1_prime = torch.matmul(temp, P_hat_inv) #permuted A1
         
-        #proxy training    
-
-        outgcn = permmodel(rec_pred1_np, ts_feature)
-        P_hat = sinkhorn(outgcn, n_iters= 20, temp= 0.01)       
-        temp = torch.matmul(P_hat, rec_pred1)   
-        P_hat_inv = torch.transpose(P_hat, 0, 1)
-        #permuted A1
-        rec_A1_prime = torch.matmul(temp, P_hat_inv) 
-        #optimizer
-        loss_perm = criterion(rec_A1_prime, rec_pred2)                
-        permoptimizer.zero_grad()                
-        loss_perm.backward()
-        permoptimizer.step()
-
-        # actual permutation
-        P_hat_np = P_hat.clone().detach().numpy()            
-        prune_permutation = matching(P_hat_np)  # hungarian assignment algorithm
-        test_p = np.zeros((A1_np.shape[0],A1_np.shape[0]))
-        for i in range(len(prune_permutation[0])):
-            temp = prune_permutation[0][i]
-            test_p[i][temp] = 1
-        # apply actual permutation
-        A1_prime_np = A1_prime.clone().detach().numpy()
-        A1_prime_np = np.dot(np.dot(test_p,A1_prime_np),test_p.T)
-        A1_prime_fl = A1_prime_np.flatten()
-        A1_prime_fl = A1_prime_fl.astype('float32')
-        A1_prime_fl = torch.from_numpy(A1_prime_fl)
-
+        # A1_prime_np = A1_prime.clone().detach().numpy()        
+        
+        
         rec_pred1 = recmodel(A1_prime_fl) #reconstructed Ai
         rec_pred2 = recmodel(A2_fl)   
               
         theta1, theta2 = extract_masking_set(A1_prime_np,A2_np)
         theta1 = theta1.flatten()
-        theta1 = theta1.astype('float32')
         theta1 = torch.from_numpy(theta1)
         theta2 = theta2.flatten()
-        theta2 = theta2.astype('float32')
         theta2 = torch.from_numpy(theta2)
      
         # 손실을 계산하고 출력합니다.
@@ -147,8 +154,9 @@ for t in range(epochs):
         loss_swap_sum = loss_swap + alpha*loss_self
 
         if t % 100 == 0:
-            print( t,"swap loss:", loss_swap_sum.item(),"perm loss:",loss_perm.item())
+            print(t, loss_swap_sum.item())
             
+        # 변화도를 0으로 만들고, 역전파 단계를 수행하고, 가중치를 갱신합니다.
         recoptimizer.zero_grad()
         loss_swap_sum.backward()
         recoptimizer.step()
