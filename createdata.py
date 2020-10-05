@@ -5,6 +5,34 @@ from Masking import GraphMasking
 from scipy.optimize import linear_sum_assignment
 from functools import reduce
 import copy
+
+
+def create_graphs(graphtype = "grid"):
+    
+    if graphtype == "grid":
+        graphs = []
+        for i in range(5,6):
+            for j in range(5,6):
+                graphs.append(nx.grid_2d_graph(i,j))                
+
+    if graphtype == "trigrid":
+        graphs = []
+        for i in range(3,4):
+            for j in range(3,4):
+                graphs.append(nx.triangular_lattice_graph(i,j))
+                
+    if graphtype == "b-a":
+        graphs = []
+        for i in range(10,11):
+            for j in range(2,3): # j should be lower tahn i ( j = # of edges , i = # of nodes )
+                graphs.append(nx.barabasi_albert_graph(i,j))
+                
+    if graphtype == "Karate":
+        graphs = []
+        graphs.append(nx.karate_club_graph())                
+        
+    return graphs
+        
 def graphs_to_matrix(graphs, mode = "random", Is_randomstart = True):
     
     mat_list = []
@@ -42,43 +70,41 @@ def graphs_to_matrix(graphs, mode = "random", Is_randomstart = True):
             G_list.append(j)
             
             
+            
         elif mode == "consistent order":
             mat_list.append(mat.flatten())  
             Adj_list.append(mat)
             G_list.append(i)
             
     
-    return mat_list, Adj_list, G_list
+    return Adj_list, G_list
 
 
-        
-
-def create_graphs(graphtype = "grid"):
+def graph_pairs_to_mat(G1set,G2set):
     
-    if graphtype == "grid":
-        graphs = []
-        for i in range(3,4):
-            for j in range(3,4):
-                graphs.append(nx.grid_2d_graph(i,j))                
+    A1set = []
+    A2set = []
+    P_set = []
+    for G1 in G1set:
+        A1 = nx.to_numpy_array(G1)
+        A1set.append(A1)
+        nodes = len(A1)
+        P_gt = generate_rndperm(nodes)
+        P_set.append(P_gt)
+    idx = 0
+    for G2 in G2set:
+        Perm = P_set[idx]
+        A2 = nx.to_numpy_array(G2)
+        A2_prime = np.dot(np.dot(Perm,A2),Perm.T)
+        A2set.append(A2_prime)
+        idx += 1
+    return A1set, A2set, P_set
 
-    if graphtype == "trigrid":
-        graphs = []
-        for i in range(3,4):
-            for j in range(3,4):
-                graphs.append(nx.triangular_lattice_graph(i,j))
-                
-    if graphtype == "b-a":
-        graphs = []
-        for i in range(10,11):
-            for j in range(2,3): # j should be lower tahn i ( j = # of edges , i = # of nodes )
-                graphs.append(nx.barabasi_albert_graph(i,j))
-                
-    if graphtype == "Karate":
-        graphs = []
-        graphs.append(nx.karate_club_graph())                
+
         
-                
-    return graphs
+
+
+
 
 def GenerateMaskedPair(X_train, X_train_copy, delportion):
     
@@ -127,6 +153,7 @@ def SwapDataloader(Y1,Y2, maxnode):
         
 
 
+
 def generate_rndperm(nodenum):
     
     perm_idx_arr = np.random.permutation(nodenum)
@@ -166,7 +193,7 @@ def zeropad_for1d(adjlist, maxnumnode):
 
 def maxnode(graphset):    
     temp = len(reduce(lambda w1, w2: w1 if len(w1)>len(w2) else w2, graphset)) 
-    return int(np.sqrt(temp))
+    return int(temp)
 
 def extract_masking_set(A1,A2):
     
