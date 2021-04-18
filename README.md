@@ -7,8 +7,8 @@ for impute each edges, we have to correctly match the two incomplete graphs.
 
 # Requirement
 '''
-pytorch = 1.6.0 ,\n
-networkx = 2.5 , \n
- matplotlib \n
+pytorch = 1.6.0 
+networkx = 2.5
+ matplotlib
 ''' 
 
