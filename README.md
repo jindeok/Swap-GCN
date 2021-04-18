@@ -6,12 +6,9 @@ Adopted GCN+sinkhorn operation for permutation learning.
 for impute each edges, we have to correctly match the two incomplete graphs.
 
 # Requirement
-now changed all dependancy from (torch+ tensorflow)based to only torch based.
-So
-
 '''
-pytorch = 1.6.0 , networkx = 2.5 , matplotlib
+pytorch = 1.6.0 ,
+networkx = 2.5 ,
+ matplotlib
 ''' 
-
-would be core dependancies.
 
