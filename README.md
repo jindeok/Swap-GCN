@@ -9,9 +9,10 @@ for impute each edges, we have to correctly match the two incomplete graphs.
 run with swapmain.py
 
 # Requirement
-'''
+
 pytorch = 1.6.0 
+
 networkx = 2.5
- matplotlib
-''' 
+
+matplotlib,numpy
 
